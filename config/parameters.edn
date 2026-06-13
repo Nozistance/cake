@@ -1,0 +1,21 @@
+{:token                #or [#env BOT_TOKEN #profile {:dev  "8344769229:AAHFpAt-NbRxFHcv1f66GfWgTRXt04Wkt0w"
+                                                     :prod "SET_BOT_TOKEN_IN_ENV"}]
+ :base-url             #or [#env TELEGRAM_API_URL "https://api.telegram.org/bot"]
+ :local-files          #profile {:dev false :prod true}
+ :webhook              #or [#env WEBHOOK_URL #profile {:dev  "https://test.tryzub.ru"
+                                                       :prod "https://cake.tryzub.ru"}]
+ :port                 #long #or [#env PORT "3000"]
+ :data-dir             #or [#env DATA_DIR #profile {:dev "./data" :prod "/data"}]
+ :file-dir             #or [#env FILE_DIR #profile {:dev "./files" :prod "/assets"}]
+ :log-dir              #or [#env LOG_DIR #profile {:dev "./logs" :prod "/data/logs"}]
+ :log-level            #or [#env LOG_LEVEL #profile {:dev "debug" :prod "info"}]
+ :python-bin           #or [#env PYTHON_BIN #profile {:dev "python3" :prod "/opt/venv/bin/python3"}]
+ :file-limit-kb        #long #or [#env FILE_LIMIT_KB #profile {:dev 51200 :prod 2097152}]
+ :quality              {:worst  "worstvideo[ext=mp4]+worstaudio[ext=m4a]/worstvideo[ext=webm]+worstaudio[ext=webm]/worst"
+                        :medium "bestvideo[height<=720][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<=720][ext=webm]+bestaudio[ext=webm]/best[height<=720]"
+                        :best   "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo[ext=webm]+bestaudio[ext=webm]/best"
+                        :audio  "bestaudio[ext=m4a]/bestaudio/best"}
+ :quality-dict         {:worst  "Плохое (%.2f MB)"
+                        :medium "Хорошее (А больше и не надо) (%.2f MB)"
+                        :best   "Лучшее (%.2f MB)"
+                        :audio  "Только аудио (%.2f MB)"}}
