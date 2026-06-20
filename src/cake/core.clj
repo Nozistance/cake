@@ -74,6 +74,7 @@
         buttons (for [[q size] sizes :when (and (pos? size) (< size (* file-limit-kb 1024)))]
                   [{:text          (format (quality-dict q) (/ size 1024.0 1024.0))
                     :callback-data (->json {:quality q :code code :edit-id edit-id})}])]
+    (log/info "sizes result" {:count (count buttons) :sizes (map (fn [[q s]] [q s]) sizes)})
     (cache/put! (:yt-info cache) code info)
     (t/edit-text token chat-id edit-id {:reply-markup {:inline-keyboard buttons}}
                  "Выбери качество видоса :O\n\n*Для музыки или подкаста жми «Только аудио»")))
@@ -87,12 +88,15 @@
         outtmpl (str (.getPath dir) "/%(id)s.%(ext)s")
         cb      (progress-reporter token chat-id edit-id)]
     (try
-      (let [file (io/file (py/download! (:dl python) text
-                                        "bv*[vcodec^=avc1]+ba[ext=m4a]/bv*[ext=mp4]+ba/b[ext=mp4]/bv*+ba/b"
-                                        outtmpl cb))]
+      (let [path (py/download! (:dl python) text
+                               "bv*[vcodec^=avc1]+ba[ext=m4a]/bv*[ext=mp4]+ba/b[ext=mp4]/bv*+ba/b"
+                               outtmpl cb)
+            file (io/file path)]
+        (log/info "downloaded" {:path path :exists (.exists file) :size (.length file)})
         (t/delete-text token chat-id edit-id)
-        (keep-action! token chat-id :upload-video
-                      #(t/send-video token chat-id (options message) file)))
+        (let [resp (keep-action! token chat-id :upload-video
+                                 #(t/send-video token chat-id (options message) file))]
+          (log/info "send-video response" {:ok (:ok resp)})))
       (finally (delete-dir! dir)))))
 
 (defn start-command-fn [{:keys [token]} {{chat-id :id} :chat}]

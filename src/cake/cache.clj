@@ -7,4 +7,5 @@
 
 (defn take! [store k]
   (when (cw/has? store k)
-    (let [v (cw/lookup store k)] (cw/evict store k) v)))
+    (let [v (cw/lookup store k)]
+      (cw/evict store k) v)))

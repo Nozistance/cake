@@ -1,2 +1,4 @@
-# Project exclude paths
-/.cpcache/
+.cpcache/
+.idea/
+target/
+resources/cake/__pycache__/

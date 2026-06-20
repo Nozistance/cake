@@ -1,8 +1,10 @@
 (ns cake.python
   (:require [cake.util :refer [->json]]
             [clojure.java.io :as io]
-            [clojure.string :as str])
+            [clojure.string :as str]
+            [taoensso.timbre :as log])
   (:import (java.io File)
+           (java.lang ProcessBuilder)
            (java.util.concurrent TimeUnit)
            (java.util.function BiConsumer)))
 
@@ -34,8 +36,8 @@
     [t buf]))
 
 (defn- run [{:keys [python-bin script]} req-map ^BiConsumer cb]
-  (let [p       (-> (ProcessBuilder. (into-array String [python-bin script]))
-                    (.start))
+  (log/info "python run" {:cmd (:cmd req-map) :url (:url req-map)})
+  (let [p (-> (ProcessBuilder. [python-bin script]) (.start))
         [_ buf] (pump-stderr! p cb)
         out-fut (future (slurp (.getInputStream p) :encoding "UTF-8"))]
     (with-open [os (.getOutputStream p)]
@@ -43,13 +45,16 @@
     (if (.waitFor p (long hard-timeout-min) TimeUnit/MINUTES)
       (let [code (.exitValue p)
             out  (str/trim @out-fut)]
+        (log/info "python done" {:cmd (:cmd req-map) :exit code :stderr-lines (count @buf)})
         (when-not (zero? code)
+          (log/error "yt-dlp failed" {:code code :stderr (str/join "\n" (take-last 20 @buf))})
           (throw (ex-info (str "yt-dlp exited " code ": "
                                (str/join " | " (take-last 20 @buf)))
                           {:code code})))
         out)
       (do (.destroyForcibly p)
           (future-cancel out-fut)
+          (log/error "yt-dlp timed out" {:timeout-min hard-timeout-min})
           (throw (ex-info (str "yt-dlp timed out after " hard-timeout-min "m")
                           {:timeout-min hard-timeout-min}))))))
 

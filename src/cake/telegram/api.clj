@@ -1,8 +1,9 @@
 (ns cake.telegram.api
-  (:require [cake.util :refer [->edn ->json key-case]]
+  (:require [cake.util :refer [->edn ->json]]
             [camel-snake-kebab.core :refer [->snake_case_string]]
-            [clj-http.client :as http]
-            [clojure.string :as string])
+            [org.httpkit.client :as hk]
+            [clojure.string :as string]
+            [taoensso.timbre :as log])
   (:import (java.io File)
            (java.net URI)))
 
@@ -10,8 +11,7 @@
 
 (def local-files? (atom true))
 
-(def ^:private remote-file-dir
-  (or (System/getenv "REMOTE_FILE_DIR") "/opt/files"))
+(def remote-file-dir (atom "/opt/files"))
 
 (def file-dir (atom nil))
 
@@ -20,88 +20,66 @@
     {:name (->snake_case_string k) :content (if (coll? v) (->json v) (str v))}))
 
 (defn- remote-rel [^File f]
-  (let [base @file-dir]
-    (if (and base (.startsWith (.getPath f) (.getPath (File. ^String base))))
-      (-> (.toPath (File. ^String base)) (.relativize (.toPath f)) (.toString))
+  (let [base  @file-dir
+        path  (.getPath f)
+        prefix (when base (let [b (.getPath (File. ^String base))]
+                            (when (.startsWith path (str b "/"))
+                              (str b "/"))))]
+    (if prefix
+      (.substring path (.length prefix))
       (.getName f))))
 
 (defn file-ref [f]
   (if (instance? File f)
-    (.toASCIIString (URI. "file" "" (str remote-file-dir "/" (remote-rel f)) nil))
+    (.toASCIIString (URI. "file" "" (str @remote-file-dir "/" (remote-rel f)) nil))
     f))
 
+(defn- post-json [url body]
+  @(hk/post url {:headers {"Content-Type" "application/json"} :body (->json body)}))
+
 (defn set-webhook [token webhook-url]
-  (let [url (str @base-url token "/setWebhook")
-        query {:url webhook-url}]
-    (http/get url {:as :json :query-params query})))
-
-(defn remove-webhook [token]
-  (let [url (str @base-url token "/deleteWebhook")]
-    (http/get url {:as :json})))
-
-(defn get-file [token file-id]
-  (let [url (str @base-url token "/getFile")
-        body {:file-id file-id}
-        resp (http/post url {:content-type :json
-                             :form-params  (key-case body)})]
-    (-> resp :body ->edn)))
-
-(defn get-user-profile-photos
-  ([token user-id] (get-user-profile-photos token user-id {}))
-  ([token user-id options]
-   (let [url (str @base-url token "/getUserProfilePhotos")
-         body (into {:user-id user-id} options)
-         resp (http/post url {:content-type :json
-                              :form-params  (key-case body)})]
-     (-> resp :body ->edn))))
+  @(hk/get (str @base-url token "/setWebhook") {:query-params {:url webhook-url}}))
 
 (defn send-text
   ([token chat-id text] (send-text token chat-id {} text))
   ([token chat-id options text]
-   (let [url (str @base-url token "/sendMessage")
-         body (into {:chat-id chat-id :text text} options)
-         resp (http/post url {:content-type :json
-                              :body         (->json body)})]
-     (-> resp :body ->edn))))
+   (-> (post-json (str @base-url token "/sendMessage")
+                  (into {:chat-id chat-id :text text} options))
+       :body ->edn)))
 
 (defn forward-message
   ([token chat-id from-chat-id message-id]
    (forward-message token chat-id from-chat-id message-id {}))
   ([token chat-id from-chat-id message-id options]
-   (let [url (str @base-url token "/forwardMessage")
-         body (into {:chat-id      chat-id
-                     :from-chat-id from-chat-id
-                     :message-id   message-id} options)
-         resp (http/post url {:content-type :json
-                              :form-params  (key-case body)})]
-     (-> resp :body ->edn))))
+   (-> (post-json (str @base-url token "/forwardMessage")
+                  (into {:chat-id chat-id :from-chat-id from-chat-id :message-id message-id} options))
+       :body ->edn)))
 
 (defn edit-text
   ([token chat-id message-id text] (edit-text token chat-id message-id {} text))
   ([token chat-id message-id options text]
-   (let [url (str @base-url token "/editMessageText")
-         query (into {:chat-id chat-id :text text :message-id message-id} options)
-         resp (http/post url {:content-type :json
-                              :form-params  (key-case query)})]
-     (-> resp :body ->edn))))
+   (-> (post-json (str @base-url token "/editMessageText")
+                  (into {:chat-id chat-id :text text :message-id message-id} options))
+       :body ->edn)))
 
 (defn delete-text [token chat-id message-id]
-  (let [url (str @base-url token "/deleteMessage")
-        body {:chat-id chat-id :message-id message-id}
-        resp (http/post url {:content-type :json
-                             :form-params  (key-case body)})]
-    (-> resp :body ->edn)))
+  (-> (post-json (str @base-url token "/deleteMessage")
+                 {:chat-id chat-id :message-id message-id})
+      :body ->edn))
 
 (defn send-file [token chat-id options file method field _filename]
   (let [url (str @base-url token method)]
     (if (and (instance? File file) (not @local-files?))
-      (-> (http/post url {:multipart (into [{:name "chat_id" :content (str chat-id)}
-                                            {:name field :content ^File file}]
-                                           (opt-parts options))})
+      (-> @(hk/post url {:multipart (into [{:name "chat_id" :content (str chat-id)}
+                                           {:name field :content ^File file}]
+                                          (opt-parts options))})
           :body ->edn)
-      (-> (http/post url {:content-type :json
-                          :body (->json (into {:chat-id chat-id (keyword field) (file-ref file)} options))})
-          :body ->edn))))
+      (let [ref    (file-ref file)
+            body   (into {:chat-id chat-id (keyword field) ref} options)
+            raw    (post-json url body)
+            parsed (-> raw :body ->edn)]
+        (log/info "send-file" {:method method :ref ref :status (:status raw) :ok (:ok parsed) :desc (:description parsed)})
+        parsed))))
 
 (defn is-file? [value] (= File (type value)))
 
@@ -148,24 +126,24 @@
                      (instance? File thumbnail)
                      (conj {:name "thumbnail" :content "attach://thumb"}
                            {:name "thumb" :content ^File thumbnail}))]
-         (-> (http/post url {:multipart parts}) :body ->edn))
+         (-> @(hk/post url {:multipart parts}) :body ->edn))
        (let [body (cond-> (into {:chat-id chat-id :audio (file-ref audio)} options)
                     thumbnail (assoc :thumbnail (file-ref thumbnail)))]
-         (-> (http/post url {:content-type :json :body (->json body)}) :body ->edn))))))
+         (-> (post-json url body) :body ->edn))))))
 
 (defn send-video-id
   ([token chat-id file-id] (send-video-id token chat-id {} file-id))
   ([token chat-id options file-id]
-   (let [url (str @base-url token "/sendVideo")
-         body (into {:chat-id chat-id :video file-id} options)]
-     (-> (http/post url {:content-type :json :body (->json body)}) :body ->edn))))
+   (-> (post-json (str @base-url token "/sendVideo")
+                  (into {:chat-id chat-id :video file-id} options))
+       :body ->edn)))
 
 (defn send-audio-id
   ([token chat-id file-id] (send-audio-id token chat-id {} file-id))
   ([token chat-id options file-id]
-   (let [url (str @base-url token "/sendAudio")
-         body (into {:chat-id chat-id :audio file-id} options)]
-     (-> (http/post url {:content-type :json :body (->json body)}) :body ->edn))))
+   (-> (post-json (str @base-url token "/sendAudio")
+                  (into {:chat-id chat-id :audio file-id} options))
+       :body ->edn)))
 
 (defn send-sticker
   ([token chat-id sticker] (send-sticker token chat-id {} sticker))
@@ -176,27 +154,21 @@
 (defn answer-inline
   ([token inline-query-id results] (answer-inline token inline-query-id {} results))
   ([token inline-query-id options results]
-   (let [url (str @base-url token "/answerInlineQuery")
-         body (into {:inline-query-id inline-query-id :results results} options)
-         resp (http/post url {:content-type :json
-                              :form-params  (key-case body)})]
-     (-> resp :body ->edn))))
+   (-> (post-json (str @base-url token "/answerInlineQuery")
+                  (into {:inline-query-id inline-query-id :results results} options))
+       :body ->edn)))
 
 (defn answer-callback
   ([token callback-query-id] (answer-callback token callback-query-id "" false))
   ([token callback-query-id text] (answer-callback token callback-query-id text false))
   ([token callback-query-id text show-alert]
-   (let [url (str @base-url token "/answerCallbackQuery")
-         body {:callback-query-id callback-query-id :text text :show-alert show-alert}
-         resp (http/post url {:content-type :json
-                              :form-params  (key-case body)})]
-     (-> resp :body ->edn))))
+   (-> (post-json (str @base-url token "/answerCallbackQuery")
+                  {:callback-query-id callback-query-id :text text :show-alert show-alert})
+       :body ->edn)))
 
 (defn send-chat-action
   ([token chat-id action] (send-chat-action token chat-id {} action))
   ([token chat-id options action]
-   (let [url (str @base-url token "/sendChatAction")
-         body (into {:chat-id chat-id :action (->snake_case_string action)} options)
-         resp (http/post url {:content-type :json
-                              :form-params  (key-case body)})]
-     (-> resp :body ->edn))))
+   (-> (post-json (str @base-url token "/sendChatAction")
+                  (into {:chat-id chat-id :action (->snake_case_string action)} options))
+       :body ->edn)))
