@@ -7,6 +7,7 @@
  :port                 #long #or [#env PORT "3000"]
  :data-dir             #or [#env DATA_DIR #profile {:dev "./data" :prod "/data"}]
  :file-dir             #or [#env FILE_DIR #profile {:dev "./files" :prod "/assets"}]
+ :remote-file-dir      #or [#env REMOTE_FILE_DIR #env FILE_DIR #profile {:dev "./files" :prod "/assets"}]
  :log-dir              #or [#env LOG_DIR #profile {:dev "./logs" :prod "/data/logs"}]
  :log-level            #or [#env LOG_LEVEL #profile {:dev "debug" :prod "info"}]
  :python-bin           #or [#env PYTHON_BIN #profile {:dev "python3" :prod "/opt/venv/bin/python3"}]

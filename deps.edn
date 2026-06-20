@@ -1,15 +1,18 @@
 {:paths ["src" "config" "resources"]
- :deps  {com.taoensso/timbre                    {:mvn/version "6.8.0"}
-         camel-snake-kebab/camel-snake-kebab    {:mvn/version "0.4.3"}
-         cheshire/cheshire                      {:mvn/version "6.1.0"}
-         clj-http/clj-http                      {:mvn/version "3.13.1"}
-         dev.weavejester/hashp                  {:mvn/version "0.4.1"}
-         aleph/aleph                            {:mvn/version "0.9.3"}
-         aero/aero                              {:mvn/version "1.1.6"}
-         org.clojure/core.cache                 {:mvn/version "1.1.234"}
-         integrant/integrant                    {:mvn/version "0.8.1"}
-         integrant/repl                         {:mvn/version "0.5.1"}}
+ :deps  {org.clojure/clojure                        {:mvn/version "1.12.0"}
+         com.taoensso/timbre                       {:mvn/version "6.8.0"}
+         camel-snake-kebab/camel-snake-kebab       {:mvn/version "0.4.3"}
+         cheshire/cheshire                         {:mvn/version "6.1.0"}
+         dev.weavejester/hashp                     {:mvn/version "0.4.1"}
+         http-kit/http-kit                         {:mvn/version "2.8.0"}
+         aero/aero                                 {:mvn/version "1.1.6"}
+         org.clojure/core.cache                    {:mvn/version "1.1.234"}
+         integrant/integrant                       {:mvn/version "0.8.1"}
+         integrant/repl                            {:mvn/version "0.5.1"}
+         com.github.clj-easy/graal-build-time      {:mvn/version "1.0.5"}}
 
  :aliases
- {:run {:jvm-opts  ["-Xmx384m"]
-        :main-opts ["-m" "cake.system"]}}}
+ {:run   {:jvm-opts  ["-Xmx384m"]
+          :main-opts ["-m" "cake.system"]}
+  :build {:deps       {io.github.clojure/tools.build {:mvn/version "0.10.5"}}
+          :ns-default build}}}

@@ -1,0 +1,8 @@
+{
+  "resources": {
+    "includes": [
+      {"pattern": "cake/ytdlp.py"},
+      {"pattern": "META-INF/native-image/.*"}
+    ]
+  }
+}

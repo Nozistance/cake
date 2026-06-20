@@ -1,6 +1,6 @@
 (ns cake.system
+  (:gen-class)
   (:require [aero.core :as aero]
-            [aleph.http :as aleph]
             [cake.cache :as cache]
             [cake.core :as core]
             [cake.log :as clog]
@@ -9,6 +9,7 @@
             [cake.telegram.handlers :as h]
             [cake.util :refer [->edn]]
             [integrant.core :as ig]
+            [org.httpkit.server :as hk]
             [taoensso.timbre :as log])
   (:import (java.util.concurrent ExecutorService Executors)))
 
@@ -27,12 +28,13 @@
    :cake/server    {:port    (:port cfg)
                     :handler (ig/ref :cake/handler)
                     :worker  (ig/ref :cake/worker)}
-   :cake/telegram  {:token       (:token cfg)
-                    :base-url    (:base-url cfg)
-                    :webhook     (:webhook cfg)
-                    :local-files (:local-files cfg)
-                    :file-dir    (:file-dir cfg)
-                    :server      (ig/ref :cake/server)}})
+   :cake/telegram  {:token            (:token cfg)
+                    :base-url         (:base-url cfg)
+                    :webhook          (:webhook cfg)
+                    :local-files      (:local-files cfg)
+                    :file-dir         (:file-dir cfg)
+                    :remote-file-dir  (:remote-file-dir cfg)
+                    :server           (ig/ref :cake/server)}})
 
 (defmethod ig/init-key :cake/cache [_ {:keys [ttl-min]}]
   {:yt-info (cache/ttl-store (* ttl-min 60 1000))})
@@ -63,14 +65,15 @@
 
 (defmethod ig/init-key :cake/server [_ {:keys [port handler worker]}]
   (log/info "Starting server" {:port port})
-  (aleph/start-server (partial proceed worker handler) {:port port}))
+  (hk/run-server (partial proceed worker handler) {:port port}))
 
-(defmethod ig/halt-key! :cake/server [_ server] (.close server))
+(defmethod ig/halt-key! :cake/server [_ stop-fn] (stop-fn))
 
-(defmethod ig/init-key :cake/telegram [_ {:keys [token base-url webhook local-files file-dir]}]
+(defmethod ig/init-key :cake/telegram [_ {:keys [token base-url webhook local-files file-dir remote-file-dir]}]
   (reset! t/base-url base-url)
   (reset! t/local-files? (boolean local-files))
   (reset! t/file-dir file-dir)
+  (reset! t/remote-file-dir (or remote-file-dir file-dir))
   (log/info "Setting webhook" {:webhook webhook :tg-api base-url :local-files (boolean local-files)})
   (try
     (t/set-webhook token webhook)
