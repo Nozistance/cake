@@ -114,10 +114,10 @@
           (catch Exception _
             (try (t/send-text token chat-id options msg) (catch Exception _ nil)))))))
 
-(defn message-fn [ctx {{chat-id :id} :chat :keys [message-id text] :as message}]
+(defn message-fn [ctx {{chat-id :id} :chat :keys [message-id text from] :as message}]
   (let [token (:token ctx) options (options message)]
     (if-let [uri-type (classify-uri text)]
-      (let [_ (log/info "Handling" {:id message-id :uri text :uri-type uri-type})
+      (let [_ (log/info "Handling" {:id message-id :uri text :uri-type uri-type :from from})
             {{edit-id :message-id} :result} (t/send-text token chat-id options "Погодь, ищу видос...")]
         (try
           (handle-uri (assoc ctx :edit-id edit-id) uri-type message)

@@ -30,8 +30,5 @@
 (defn message-fn [handler-fn]
   (update-fn [:message] handler-fn))
 
-(defn inline-fn [handler-fn]
-  (update-fn [:inline-query] handler-fn))
-
 (defn callback-fn [handler-fn]
   (update-fn [:callback-query] handler-fn))

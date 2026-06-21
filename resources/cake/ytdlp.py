@@ -48,7 +48,13 @@ _BASE = {
     'fragment_retries': 5,
     'socket_timeout': 30,
     'remote_components': ['ejs:github'],
-    'extractor_args': {'youtube': {'skip': ['hls']}},
+    'extractor_args': {
+        'youtube': {'skip': ['hls']},
+        # PO-token provider (bgutil) — yt-dlp plugin fetches GVS tokens from this sidecar.
+        'youtubepot-bgutilhttp': {
+            'base_url': [os.environ.get('BGUTIL_BASE_URL', 'http://bgutil-provider:4416')]
+        },
+    },
     'concurrent_fragment_downloads': 4,
     'http_chunk_size': 10485760,
     'quiet': True,

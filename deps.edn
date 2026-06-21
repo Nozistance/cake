@@ -9,10 +9,10 @@
          org.clojure/core.cache                    {:mvn/version "1.1.234"}
          integrant/integrant                       {:mvn/version "0.8.1"}
          integrant/repl                            {:mvn/version "0.5.1"}
-         com.github.clj-easy/graal-build-time      {:mvn/version "1.0.5"}}
+         com.github.clj-easy/graal-build-time      {:mvn/version "1.0.6"}}
 
  :aliases
  {:run   {:jvm-opts  ["-Xmx384m"]
           :main-opts ["-m" "cake.system"]}
-  :build {:deps       {io.github.clojure/tools.build {:mvn/version "0.10.5"}}
+  :build {:deps       {io.github.clojure/tools.build {:mvn/version "0.10.14"}}
           :ns-default build}}}

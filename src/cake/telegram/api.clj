@@ -34,8 +34,12 @@
     (.toASCIIString (URI. "file" "" (str @remote-file-dir "/" (remote-rel f)) nil))
     f))
 
-(defn- post-json [url body]
-  @(hk/post url {:headers {"Content-Type" "application/json"} :body (->json body)}))
+(def upload-timeout-ms 600000)
+
+(defn- post-json
+  ([url body] (post-json url body {}))
+  ([url body opts]
+   @(hk/post url (merge {:headers {"Content-Type" "application/json"} :body (->json body)} opts))))
 
 (defn set-webhook [token webhook-url]
   @(hk/get (str @base-url token "/setWebhook") {:query-params {:url webhook-url}}))
@@ -76,9 +80,10 @@
           :body ->edn)
       (let [ref    (file-ref file)
             body   (into {:chat-id chat-id (keyword field) ref} options)
-            raw    (post-json url body)
+            raw    (post-json url body {:timeout upload-timeout-ms})
             parsed (-> raw :body ->edn)]
-        (log/info "send-file" {:method method :ref ref :status (:status raw) :ok (:ok parsed) :desc (:description parsed)})
+        (log/info "send-file" {:method method :ref ref :status (:status raw) :ok (:ok parsed)
+                               :desc (:description parsed) :error (some-> raw :error str)})
         parsed))))
 
 (defn is-file? [value] (= File (type value)))
@@ -129,7 +134,7 @@
          (-> @(hk/post url {:multipart parts}) :body ->edn))
        (let [body (cond-> (into {:chat-id chat-id :audio (file-ref audio)} options)
                     thumbnail (assoc :thumbnail (file-ref thumbnail)))]
-         (-> (post-json url body) :body ->edn))))))
+         (-> (post-json url body {:timeout upload-timeout-ms}) :body ->edn))))))
 
 (defn send-video-id
   ([token chat-id file-id] (send-video-id token chat-id {} file-id))

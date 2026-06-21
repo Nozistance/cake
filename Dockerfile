@@ -1,4 +1,4 @@
-FROM ghcr.io/graalvm/native-image-community:24 AS build
+FROM container-registry.oracle.com/graalvm/native-image:25 AS build
 
 WORKDIR /app
 
@@ -29,7 +29,7 @@ WORKDIR /app
 
 RUN apk add --no-cache python3 py3-pip ffmpeg ca-certificates gcompat \
  && python3 -m venv /opt/venv \
- && /opt/venv/bin/pip install --no-cache-dir yt-dlp \
+ && /opt/venv/bin/pip install --no-cache-dir yt-dlp bgutil-ytdlp-pot-provider \
  && /opt/venv/bin/python3 -c "import yt_dlp; print('yt-dlp', yt_dlp.version.__version__)"
 
 COPY --from=build /app/target/cake /app/cake
