@@ -43,11 +43,14 @@
               (catch Exception _ nil))))))))
 
 (defn classify-uri [uri]
-  (-> uri (URI.) (.getHost)
-      (#(or (str/includes? % "youtube.com")
-            (str/includes? % "youtu.be")))
-      (if :youtube :generic)
-      (try (catch Exception _ nil))))
+  (try
+    (let [host (str/lower-case (.getHost (URI. ^String uri)))]
+      (cond
+        (or (str/includes? host "youtube.com")
+            (str/includes? host "youtu.be"))  :youtube
+        (str/includes? host "instagram")      :instagram
+        :else                                 :generic))
+    (catch Exception _ nil)))
 
 (defn options [{{chat-id :id} :chat :keys [message-id text]}]
   {:disable-notification true
@@ -81,6 +84,11 @@
 
 (defmethod handle-uri :youtube [ctx uri-type message]
   (#'handle-uri-youtube ctx uri-type message))
+
+(defmethod handle-uri :instagram [ctx _ {{chat-id :id} :chat :as message}]
+  (t/send-text (:token ctx) chat-id (options message)
+               "С инстой не всегда выходит. Иногда там возрастные ограничения, иногда - приватный аккаунт. Просто предупреждаю")
+  (handle-uri ctx :generic message))
 
 (defmethod handle-uri :generic [ctx _ {{chat-id :id} :chat :keys [text] :as message}]
   (let [{:keys [token file-dir python edit-id]} ctx
