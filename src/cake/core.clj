@@ -85,11 +85,6 @@
 (defmethod handle-uri :youtube [ctx uri-type message]
   (#'handle-uri-youtube ctx uri-type message))
 
-(defmethod handle-uri :instagram [ctx _ {{chat-id :id} :chat :as message}]
-  (t/send-text (:token ctx) chat-id (options message)
-               "С инстой не всегда выходит. Иногда там возрастные ограничения, иногда - приватный аккаунт. Просто предупреждаю")
-  (handle-uri ctx :generic message))
-
 (defmethod handle-uri :generic [ctx _ {{chat-id :id} :chat :keys [text] :as message}]
   (let [{:keys [token file-dir python edit-id]} ctx
         dir     (req-dir file-dir)
@@ -125,12 +120,17 @@
 (defn message-fn [ctx {{chat-id :id} :chat :keys [message-id text from] :as message}]
   (let [token (:token ctx) options (options message)]
     (if-let [uri-type (classify-uri text)]
-      (let [_ (log/info "Handling" {:id message-id :uri text :uri-type uri-type :from from})
-            {{edit-id :message-id} :result} (t/send-text token chat-id options "Погодь, ищу видос...")]
-        (try
-          (handle-uri (assoc ctx :edit-id edit-id) uri-type message)
-          (catch Exception e
-            (notify-fail! token chat-id edit-id options e))))
+      (do
+        (log/info "Handling" {:id message-id :uri text :uri-type uri-type :from from})
+        (when (= uri-type :instagram)
+          (t/send-text token chat-id options
+                       "С инстой не всегда выходит. Иногда там возрастные ограничения, иногда — приватный аккаунт. Просто предупреждаю"))
+        (let [{{edit-id :message-id} :result} (t/send-text token chat-id options "Погодь, ищу видос...")]
+          (try
+            (handle-uri (assoc ctx :edit-id edit-id)
+                        (if (= uri-type :instagram) :generic uri-type) message)
+            (catch Exception e
+              (notify-fail! token chat-id edit-id options e)))))
       (t/send-text token chat-id options "Странная ссылка какая-то. Давай другую"))))
 
 (defn callback-fn [ctx {id :id {chat-id :id} :from :as inline}]
