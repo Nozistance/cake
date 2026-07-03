@@ -1,11 +1,11 @@
 name: release
 
-# Build and publish the image on a semver tag push (vX.Y.Z), then prune
+# Build and publish the image on every push to master, then prune
 # dangling untagged versions from GHCR.
 on:
   push:
-    tags:
-      - "v*"
+    branches:
+      - master
   workflow_dispatch:
 
 permissions:
@@ -35,9 +35,8 @@ jobs:
         with:
           images: ghcr.io/${{ github.repository }}
           tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
             type=raw,value=latest
+            type=sha
           # docker/metadata-action sets org.opencontainers.image.version
           # (and revision/created/source) automatically from these.
 
