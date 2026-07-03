@@ -19,7 +19,7 @@
       (io/copy in tmp))
     (.getPath tmp)))
 
-(defn- pump-stderr! [^Process p ^BiConsumer cb]
+(defn- pump-stderr! [^Process p ^BiConsumer cb cmd]
   (let [buf (atom [])
         t (Thread.
             #(with-open [r (io/reader (.getErrorStream p))]
@@ -29,7 +29,8 @@
                      (let [[_ g t] (str/split line #"\s+")]
                        (try (.accept cb (Long/parseLong g) (Long/parseLong t))
                             (catch Exception _ nil))))
-                   (swap! buf conj line)))))]
+                   (do (log/warn "ytdlp stderr" {:cmd cmd :line line})
+                       (swap! buf conj line))))))]
     (.setName t "ytdlp-stderr")
     (.setDaemon t true)
     (.start t)
@@ -38,7 +39,7 @@
 (defn- run [{:keys [python-bin script]} req-map ^BiConsumer cb]
   (log/info "python run" {:cmd (:cmd req-map) :url (:url req-map)})
   (let [p (-> (ProcessBuilder. [python-bin script]) (.start))
-        [_ buf] (pump-stderr! p cb)
+        [_ buf] (pump-stderr! p cb (:cmd req-map))
         out-fut (future (slurp (.getInputStream p) :encoding "UTF-8"))]
     (with-open [os (.getOutputStream p)]
       (.write os (.getBytes ^String (->json req-map) "UTF-8")))
