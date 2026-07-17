@@ -61,7 +61,13 @@ _BASE = {
     'no_warnings': True,
     'noprogress': True,
     'ignoreerrors': False,
-    'postprocessor_args': {'merger': ['-movflags', '+faststart']},
+    'postprocessor_args': {
+        'merger': [
+            '-movflags', '+faststart',
+            '-bsf:v', 'aac_adtstoasc',
+            '-metadata:s:v:0', 'rotate=0'
+        ]
+    },
 }
 
 _cachedir = os.environ.get('YTDLP_CACHEDIR')
