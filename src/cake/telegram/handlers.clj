@@ -24,7 +24,7 @@
 
 (defn update-fn [path handler-fn]
   (fn [update]
-    (if-let [data (get-in update path)]
+    (when-let [data (get-in update path)]
       (handler-fn data))))
 
 (defn message-fn [handler-fn]

@@ -37,8 +37,8 @@
     [t buf]))
 
 (defn- run [{:keys [python-bin script]} req-map ^BiConsumer cb]
-  (log/info "python run" {:cmd (:cmd req-map) :url (:url req-map)})
-  (let [p (-> (ProcessBuilder. [python-bin script]) (.start))
+  (log/info "python run" (select-keys req-map [:cmd :url]))
+  (let [p (.start (ProcessBuilder. [python-bin script]))
         [_ buf] (pump-stderr! p cb (:cmd req-map))
         out-fut (future (slurp (.getInputStream p) :encoding "UTF-8"))]
     (with-open [os (.getOutputStream p)]

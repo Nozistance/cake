@@ -1,6 +1,7 @@
 (ns cake.telegram.api
   (:require [cake.util :refer [->edn ->json]]
             [camel-snake-kebab.core :refer [->snake_case_string]]
+            [clojure.java.shell :as shell]
             [org.httpkit.client :as hk]
             [clojure.string :as string]
             [taoensso.timbre :as log])
@@ -111,11 +112,25 @@
   ([token chat-id options document]
    (send-file token chat-id options document "/sendDocument" "document" "document")))
 
+(defn- probe-video [^File file]
+  (try
+    (let [{:keys [exit out]} (shell/sh "ffprobe" "-v" "error" "-select_streams" "v:0"
+                                       "-show_entries" "stream=width,height:format=duration"
+                                       "-of" "csv=p=0" (.getPath file))
+          [w h d] (when (zero? exit) (re-seq #"\d+(?:\.\d+)?" out))]
+      (when (and w h)
+        (cond-> {:width (parse-long w) :height (parse-long h)}
+          d (assoc :duration (long (Double/parseDouble d))))))
+    (catch Exception e
+      (log/warn "ffprobe failed" (ex-message e))
+      nil)))
+
 (defn send-video
   ([token chat-id video] (send-video token chat-id {} video))
   ([token chat-id options video]
    (when (is-file? video) (assert-file-type video ["mp4"]))
-   (send-file token chat-id (assoc options :supports-streaming true)
+   (send-file token chat-id (merge (when (is-file? video) (probe-video video))
+                                   (assoc options :supports-streaming true))
               video "/sendVideo" "video" "video.mp4")))
 
 (defn send-audio
