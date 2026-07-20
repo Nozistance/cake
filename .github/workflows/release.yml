@@ -7,6 +7,11 @@ on:
     branches:
       - master
   workflow_dispatch:
+    inputs:
+      rollback_tag:
+        description: 'GHCR tag to roll back to (e.g. sha-1a2b3c4). Empty = normal build.'
+        required: false
+        default: ''
 
 permissions:
   contents: read
@@ -14,6 +19,7 @@ permissions:
 
 jobs:
   build:
+    if: ${{ github.event.inputs.rollback_tag == '' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -53,6 +59,7 @@ jobs:
 
   deploy:
     needs: build
+    if: ${{ always() && (needs.build.result == 'success' || github.event.inputs.rollback_tag != '') }}
     runs-on: ubuntu-latest
     steps:
       - name: Deploy over SSH
@@ -61,8 +68,18 @@ jobs:
           host: ${{ secrets.SSH_HOST }}
           username: ${{ secrets.SSH_USER }}
           password: ${{ secrets.SSH_PASSWORD }}
+          envs: ROLLBACK_TAG,REPO
           script: |
             cd /root/matrix
-            docker compose pull cake
+            IMG=$(echo "ghcr.io/${REPO}" | tr '[:upper:]' '[:lower:]')
+            if [ -n "${ROLLBACK_TAG}" ]; then
+              docker pull "${IMG}:${ROLLBACK_TAG}"
+              docker tag "${IMG}:${ROLLBACK_TAG}" "${IMG}:latest"
+            else
+              docker compose pull cake
+            fi
             docker compose up -d cake
             docker image prune -f
+        env:
+          ROLLBACK_TAG: ${{ github.event.inputs.rollback_tag }}
+          REPO: ${{ github.repository }}

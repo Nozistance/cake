@@ -13,11 +13,10 @@
 (def ^:private hard-timeout-min 60)
 
 (defn script-file ^String []
-  (let [tmp (File/createTempFile "cake-ytdlp" ".py")]
-    (.deleteOnExit tmp)
-    (with-open [in (io/input-stream (io/resource "cake/ytdlp.py"))]
-      (io/copy in tmp))
-    (.getPath tmp)))
+  (let [path (or (System/getenv "YTDLP_SCRIPT") "python/ytdlp.py")]
+    (when-not (.exists (io/file path))
+      (throw (ex-info "ytdlp.py not found" {:path path})))
+    path))
 
 (defn- pump-stderr! [^Process p ^BiConsumer cb cmd]
   (let [buf (atom [])

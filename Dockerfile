@@ -34,6 +34,8 @@ RUN apk add --no-cache python3 py3-pip ffmpeg ca-certificates gcompat \
 
 COPY --from=build /app/target/cake /app/cake
 COPY --from=build /app/config /app/config
+# runtime script — separate late layer so editing it skips the native rebuild
+COPY python/ytdlp.py /app/ytdlp.py
 
 ENV LANG=C.UTF-8 \
     LC_ALL=C.UTF-8 \
@@ -44,6 +46,7 @@ ENV LANG=C.UTF-8 \
     REMOTE_FILE_DIR=/assets \
     LOG_DIR=/data/logs \
     PYTHON_BIN=/opt/venv/bin/python3 \
+    YTDLP_SCRIPT=/app/ytdlp.py \
     PORT=8080
 
 VOLUME ["/data", "/assets"]
