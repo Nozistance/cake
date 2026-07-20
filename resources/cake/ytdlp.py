@@ -106,10 +106,41 @@ def _thumb(info, base):
         except OSError:
             pass
 
+def _codec(path, stream):
+    try:
+        r = subprocess.run(['ffprobe', '-v', 'error', '-select_streams', stream,
+                            '-show_entries', 'stream=codec_name', '-of', 'csv=p=0', path],
+                           capture_output=True, text=True, check=True)
+        return r.stdout.strip()
+    except Exception:
+        return None
+
+def _ensure_h264(path):
+    # Telegram's iOS client only decodes H.264/AAC mp4 inline; other video
+    # (HEVC/VP9/AV1) or audio (opus) plays as a static frame with sound.
+    # Only ever re-encode the stream that's actually incompatible.
+    vcodec, acodec = _codec(path, 'v:0'), _codec(path, 'a:0')
+    v_ok, a_ok = vcodec in (None, 'h264'), acodec in (None, 'aac')
+    if v_ok and a_ok:
+        return path
+    # ponytail: crf 23 / 1080 cap keep the transcode from bloating; tune if quality/size complaints
+    vargs = ['-c:v', 'copy'] if v_ok else \
+        ['-c:v', 'libx264', '-preset', 'fast', '-crf', '23', '-pix_fmt', 'yuv420p',
+         '-vf', 'scale=1080:1080:force_original_aspect_ratio=decrease:force_divisible_by=2']
+    out = os.path.splitext(path)[0] + '.h264.mp4'
+    try:
+        subprocess.run(['ffmpeg', '-y', '-i', path, *vargs,
+                        '-c:a', 'copy' if a_ok else 'aac', '-movflags', '+faststart', out],
+                       check=True, capture_output=True)
+        os.replace(out, path)
+    except Exception as e:
+        _log('re-encode failed', vcodec, acodec, repr(e))
+    return path
+
 def download(url, fmt, outtmpl):
     opts = dict(_BASE, format=fmt, outtmpl=outtmpl, progress_hooks=_mk_hooks())
     with yt_dlp.YoutubeDL(opts) as y:
-        return _saved(_path(y, y.extract_info(url, download=True)))
+        return _saved(_ensure_h264(_path(y, y.extract_info(url, download=True))))
 
 def info(url):
     with yt_dlp.YoutubeDL(dict(_BASE, skip_download=True)) as y:
@@ -159,11 +190,11 @@ def download_info(info_json, fmt, outtmpl):
     opts = dict(_BASE, format=fmt, outtmpl=outtmpl, progress_hooks=_mk_hooks())
     try:
         with yt_dlp.YoutubeDL(opts) as y:
-            return _saved(_path(y, y.process_ie_result(info, download=True)))
+            return _saved(_ensure_h264(_path(y, y.process_ie_result(info, download=True))))
     except yt_dlp.utils.DownloadError:
         _log('download_info: process_ie_result failed, retrying via fallback url')
         with yt_dlp.YoutubeDL(opts) as y:
-            return _saved(_path(y, y.extract_info(_fallback_url(info), download=True)))
+            return _saved(_ensure_h264(_path(y, y.extract_info(_fallback_url(info), download=True))))
 
 def audio_info(info_json, outtmpl):
     info = json.loads(info_json)
