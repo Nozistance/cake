@@ -185,12 +185,6 @@ def sizes(info_json, selectors_json):
 def _fallback_url(info):
     return info.get('webpage_url') or info.get('original_url')
 
-_RETRY_YT = dict(_BASE['extractor_args']['youtube'],
-                 player_client=['web_embedded', 'tv_simply', 'mweb', 'default'])
-
-def _retry_opts(opts):
-    return dict(opts, extractor_args=dict(_BASE['extractor_args'], youtube=_RETRY_YT))
-
 def download_info(info_json, fmt, outtmpl):
     info = json.loads(info_json)
     opts = dict(_BASE, format=fmt, outtmpl=outtmpl, progress_hooks=_mk_hooks())
@@ -199,7 +193,7 @@ def download_info(info_json, fmt, outtmpl):
             return _saved(_ensure_h264(_path(y, y.process_ie_result(info, download=True))))
     except yt_dlp.utils.DownloadError:
         _log('download_info: process_ie_result failed, retrying via fallback url')
-        with yt_dlp.YoutubeDL(_retry_opts(opts)) as y:
+        with yt_dlp.YoutubeDL(opts) as y:
             return _saved(_ensure_h264(_path(y, y.extract_info(_fallback_url(info), download=True))))
 
 def audio_info(info_json, outtmpl):
@@ -217,7 +211,7 @@ def audio_info(info_json, outtmpl):
             path = _path(y, y.process_ie_result(info, download=True))
     except yt_dlp.utils.DownloadError:
         _log('audio_info: process_ie_result failed, retrying via fallback url')
-        with yt_dlp.YoutubeDL(_retry_opts(opts)) as y:
+        with yt_dlp.YoutubeDL(opts) as y:
             path = _path(y, y.extract_info(_fallback_url(info), download=True))
     _saved(path)
     thumb = _thumb(info, os.path.splitext(path)[0])
