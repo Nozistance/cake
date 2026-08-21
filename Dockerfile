@@ -29,7 +29,7 @@ WORKDIR /app
 
 RUN apk add --no-cache python3 py3-pip ffmpeg ca-certificates gcompat nodejs \
  && python3 -m venv /opt/venv \
- && /opt/venv/bin/pip install --no-cache-dir yt-dlp bgutil-ytdlp-pot-provider \
+ && /opt/venv/bin/pip install --no-cache-dir yt-dlp yt-dlp-ejs bgutil-ytdlp-pot-provider \
  && /opt/venv/bin/python3 -c "import yt_dlp; print('yt-dlp', yt_dlp.version.__version__)" \
  && node -e "if (+process.versions.node.split('.')[0] < 22) throw 'node >= 22 required'" \
  && node --version
