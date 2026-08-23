@@ -27,10 +27,13 @@ LABEL org.opencontainers.image.source=https://github.com/Nozistance/cake
 
 WORKDIR /app
 
+ARG YTDLP_VERSION=2026.8.19
+
 RUN apk add --no-cache python3 py3-pip ffmpeg ca-certificates gcompat nodejs \
  && python3 -m venv /opt/venv \
- && /opt/venv/bin/pip install --no-cache-dir yt-dlp yt-dlp-ejs bgutil-ytdlp-pot-provider \
- && /opt/venv/bin/python3 -c "import yt_dlp; print('yt-dlp', yt_dlp.version.__version__)" \
+ && /opt/venv/bin/pip install --no-cache-dir --upgrade \
+      "yt-dlp[default,curl-cffi]==${YTDLP_VERSION}" yt-dlp-ejs bgutil-ytdlp-pot-provider \
+ && /opt/venv/bin/python3 -c "import yt_dlp, curl_cffi; print('yt-dlp', yt_dlp.version.__version__, 'curl_cffi', curl_cffi.__version__)" \
  && node -e "if (+process.versions.node.split('.')[0] < 22) throw 'node >= 22 required'" \
  && node --version
 

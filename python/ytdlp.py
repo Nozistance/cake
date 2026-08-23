@@ -137,14 +137,28 @@ def _ensure_h264(path):
         _log('re-encode failed', vcodec, acodec, repr(e))
     return path
 
+_TRANSIENT = ('Unable to extract universal data for rehydration',
+              'Unexpected response from webpage request')
+_EXTRACT_TRIES = int(os.environ.get('EXTRACT_RETRIES', '6') or 1)
+
+def _extract(y, url, download):
+    for attempt in range(1, _EXTRACT_TRIES + 1):
+        try:
+            return y.extract_info(url, download=download)
+        except yt_dlp.utils.DownloadError as e:
+            if attempt == _EXTRACT_TRIES or not any(t in str(e) for t in _TRANSIENT):
+                raise
+            _log('extract: transient extractor error, retry', attempt, 'of', _EXTRACT_TRIES)
+            time.sleep(1.5 * attempt)
+
 def download(url, fmt, outtmpl):
     opts = dict(_BASE, format=fmt, outtmpl=outtmpl, progress_hooks=_mk_hooks())
     with yt_dlp.YoutubeDL(opts) as y:
-        return _saved(_ensure_h264(_path(y, y.extract_info(url, download=True))))
+        return _saved(_ensure_h264(_path(y, _extract(y, url, True))))
 
 def info(url):
     with yt_dlp.YoutubeDL(dict(_BASE, skip_download=True)) as y:
-        data = y.extract_info(url, download=False)
+        data = _extract(y, url, False)
         fmts = data.get('formats') or []
         _log('info', repr(data.get('id')), 'title', repr(data.get('title')),
              'dur', data.get('duration'), 'formats', len(fmts),
@@ -194,7 +208,7 @@ def download_info(info_json, fmt, outtmpl):
     except yt_dlp.utils.DownloadError:
         _log('download_info: process_ie_result failed, retrying via fallback url')
         with yt_dlp.YoutubeDL(opts) as y:
-            return _saved(_ensure_h264(_path(y, y.extract_info(_fallback_url(info), download=True))))
+            return _saved(_ensure_h264(_path(y, _extract(y, _fallback_url(info), True))))
 
 def audio_info(info_json, outtmpl):
     info = json.loads(info_json)
@@ -212,7 +226,7 @@ def audio_info(info_json, outtmpl):
     except yt_dlp.utils.DownloadError:
         _log('audio_info: process_ie_result failed, retrying via fallback url')
         with yt_dlp.YoutubeDL(opts) as y:
-            path = _path(y, y.extract_info(_fallback_url(info), download=True))
+            path = _path(y, _extract(y, _fallback_url(info), True))
     _saved(path)
     thumb = _thumb(info, os.path.splitext(path)[0])
     return json.dumps({'audio': path, 'thumb': thumb})
