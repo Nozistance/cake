@@ -123,10 +123,11 @@ def _ensure_h264(path):
     v_ok, a_ok = vcodec in (None, 'h264'), acodec in (None, 'aac')
     if v_ok and a_ok:
         return path
-    # ponytail: crf 23 / 1080 cap keep the transcode from bloating; tune if quality/size complaints
+    # crf 23 / 1080 cap keep the transcode from bloating without visibly trashing quality;
+    # min(iw/ih) keeps small videos at native size instead of upscaling to the box.
     vargs = ['-c:v', 'copy'] if v_ok else \
-        ['-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '26', '-pix_fmt', 'yuv420p',
-         '-vf', 'scale=720:720:force_original_aspect_ratio=decrease:force_divisible_by=2']
+        ['-c:v', 'libx264', '-preset', 'veryfast', '-crf', '23', '-pix_fmt', 'yuv420p',
+         '-vf', "scale=w='min(iw,1920)':h='min(ih,1080)':force_original_aspect_ratio=decrease:force_divisible_by=2"]
     out = os.path.splitext(path)[0] + '.h264.mp4'
     try:
         subprocess.run(['ffmpeg', '-y', '-i', path, *vargs,
